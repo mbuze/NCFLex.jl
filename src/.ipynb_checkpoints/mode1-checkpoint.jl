@@ -1,3 +1,11 @@
+using Roots
+using Optim
+using LineSearches
+using Parameters, Setfield
+
+using BifurcationKit
+const BK = BifurcationKit
+
 ################################
 # mode-1
 
@@ -96,8 +104,8 @@ mutable struct NCF
     data::Dict{Any,Any}
 end
 
-function NCF(; R=5.0, R_star = 1.0, tri=true, mode1 = true)
-    at = AtmModel(R=R, R_star = R_star, tri=tri, mode1 = mode1)
+function NCF(; R=5.0, R_star = 1.0, lt=tri(), mode1 = true)
+    at = AtmModel(R=R, R_star = R_star, lt=lt, mode1 = mode1)
     if at.mode1
         f = (Ubar,K,α) -> f_en_m1(at,Ubar,K,α)
        # f = f_en_m1
@@ -243,7 +251,7 @@ function simple_continuation(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.00004
     x0 = [ncf.Us[1];ncf.αs[1]]
     par = (K0 = ncf.Ks[1],)
 
-    iter1 = BK.ContIterable(FF_m1, (x,p)->lu(JJ_m1(x,p)), x0, par, (@lens _.K0),
+    iter1 = BK.ContIterable(FF_m1, JJ_m1, x0, par, (@lens _.K0),
         optcont1; plot = false, verbosity = 0,
         tangentAlgo = tangentAlgo,dotPALC = dotPALC, linearAlgo = linearAlgo)
         #tangentAlgo = SecantPred(),dotPALC = (x, y) -> dot(x, y))

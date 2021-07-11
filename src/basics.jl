@@ -2,13 +2,6 @@ using LinearAlgebra, NearestNeighbors
 using ForwardDiff
 using Printf
 using SparseArrays
-using Roots
-using Optim
-using LineSearches
-using Parameters, Setfield
-
-using BifurcationKit
-const BK = BifurcationKit
 
 export neighbour_distances
 
@@ -60,26 +53,49 @@ function neighbour_distances(ii)
     return NN
 end
 
+tri = Val{:tri};
+sqr = Val{:sqr};
+hcmb = Val{:hmcb};
+lat_type = Union{tri,sqr,hcmb}
+
+
 """
 test1
 """
-function domain(;r=5.0, tri=true)
+function domain(;r=5.0, lt::lat_type = tri())
     dom = Vector{Float64}[]
     A = nothing
-    if tri
+    if typeof(lt) == tri
         A = [1.0 0.5 0.0 ; 0.0 0.5*sqrt(3) 0.0; 0.0 0.0 0.0]
-    else
+    elseif typeof(lt) == sqr
         A = [1.0 0.0 0.0 ; 0.0 1.0 0.0; 0.0 0.0 0.0]
+    elseif typeof(lt) == hcmb
+        A = [1.0 0.5 0.0 ; 0.0 0.5*sqrt(3) 0.0; 0.0 0.0 0.0]
     end
-    rr = round(Int,1.5*r) + 3
-    for i in -rr:rr
-        for j in -rr:rr
-            push!(dom,A*[i;j;0.0])
+    rr = round(Int,3.0*r) + 3
+    if typeof(lt) == hcmb
+        shift = [0.5;sqrt(3)/6;0.0]
+        for i in -rr:rr
+            for j in -rr:rr
+                lp = A*[i;j;0.0]
+                push!(dom,lp)
+                push!(dom,lp.+shift)
+            end
+        end
+    else
+        for i in -rr:rr
+            for j in -rr:rr
+                lp = A*[i;j;0.0]
+                push!(dom,lp)
+           #     push!(dom,lp.+shift)
+            end
         end
     end
-    II = findall(norm.(dom) .< r + 0.01)
-    dom = dom[II]
     II = sortperm(norm.(dom))
+    dom = dom[II]
+    lc = norm(dom[1].-dom[2])
+    dom = (1.0/lc)*dom
+    II = findall(norm.(dom) .< r + 0.01)
     return dom[II]
 end
 
@@ -117,7 +133,7 @@ mutable struct AtmModel
     Ns      # neighbours in the interaction range
     Ifree   # last atom that is free to vary (before interface)
     Iclamp # first atom in the far field
-    tri     # triangular or not (true or false)
+    lt::lat_type     # lattice type (tri(), sqr() or hcmb()
     mode1    # mode 1 (true) or mode 3 (false)
     phi     # pair potential
     dphi
@@ -127,11 +143,11 @@ end
 """
 A function to define an Atoms environment.
 
-AtmModel(; R=5.0, R_star = 1.0, tri=true,mode1=true)
+AtmModel(; R=5.0, R_star = 1.0, lt=tri(),mode1=true)
 
 """
-function AtmModel(; R=5.0, R_star = 1.0, tri=true, mode1 = true)
-    X = domain(r = R+(2*R_star), tri=tri)
+function AtmModel(; R=5.0, R_star = 1.0, lt = tri(), mode1 = true)
+    X = domain(r = R+(2*R_star), lt = lt)
     Ns = at_pairs(X, r = R_star)
     Iclamp = findfirst(length.(Ns) .< maximum(length.(Ns)))
     Ifree = findfirst([sum(Ns[i] .> Iclamp-0.5) for i in 1:length(X)] .> 0) - 1
@@ -139,7 +155,7 @@ function AtmModel(; R=5.0, R_star = 1.0, tri=true, mode1 = true)
     phi(r) = 4.0*CC[1]*((CC[2]/r)^(12.0) - (CC[2]/r)^(6.0))
     dphi(r) = ForwardDiff.derivative(phi,r)
     ddphi(r) = ForwardDiff.derivative(dphi,r);
-    return AtmModel(R, R_star, X, Ns, Ifree, Iclamp, tri,mode1,phi,dphi,ddphi)
+    return AtmModel(R, R_star, X, Ns, Ifree, Iclamp, lt,mode1,phi,dphi,ddphi)
 end
 
 
@@ -161,6 +177,14 @@ end
 d1UHAT(at,x) = ForwardDiff.derivative(y->UHAT(at,y),x)
 d1d1UHAT(at,x) = ForwardDiff.derivative(y->d1UHAT(at,y),x)
 
+function site_energy_pp(at,i,U::AbstractVector{T}) where T
+    E = 0.0
+    for j in at.Ns[i]
+        Y = at.X[i] - at.X[j] + U[i]-U[j]
+        E+=at.phi(norm(Y))
+    end
+    return E
+end
 
 function energy_pp(at,U::AbstractVector{T}) where T
     site_E = []
@@ -171,6 +195,14 @@ function energy_pp(at,U::AbstractVector{T}) where T
             E+=at.phi(norm(Y))
         end
         push!(site_E,E)
+    end
+    return sum(site_E)
+end
+
+function energy_pp2(at,U::AbstractVector{T}) where T
+    site_E = []
+    for i in 1:length(U)
+        push!(site_E,site_energy_pp(at,i,U))
     end
     return sum(site_E)
 end
