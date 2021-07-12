@@ -68,40 +68,45 @@ C, C_err = elasticity.fit_elastic_constants(unitcell, symmetry="cubic",
 @show C[1, 2], C[1, 2] / ase_units.GPa
 @show C[4, 4], C[4, 4] / ase_units.GPa
 
-# surface energy
-bulk = ase_lattice_cubic.Diamond(symbol="Si", 
-                                 latticeconstant=alat, 
-                                 directions=[[1,-1,0],[1,0,-1],[1,1,1]]) * (1, 1, 10)
-bulk.calc = imsw
+function surface_energy(; shift=2.0, relax=true)
+   bulk = ase_lattice_cubic.Diamond(symbol="Si", 
+                                    latticeconstant=alat, 
+                                    directions=[[1,-1,0],[1,1,-2],[1,1,1]]) * (1, 1, 10)
+   bulk.calc = imsw
+   surface = bulk.copy()
+   X = surface.positions
+   X[:, 3] .+= shift
+   surface.set_positions(X)
+   surface.wrap()
+   cell = surface.cell.array
+   cell[3, :] += [0.0, 0.0, 10.0]
+   surface.set_cell(cell)
+   surface.calc = imsw
+   area = norm(cross(bulk.cell.array[:, 1], bulk.cell.array[:, 2]))
+   γ = (surface.get_potential_energy() - bulk.get_potential_energy()) / (2 * area)
 
-surface = bulk.copy()
-surface.positions[:, 3] .+= 2.0
-surface.rattle()
-surface.wrap()
-surface.cell[3, 3] += 10.0
-surface.calc = imsw
-area = norm(cross(bulk.cell.array[:, 1], bulk.cell.array[:, 2]))
+   if relax
+      surface.rattle()
+      f = x -> begin 
+         surface.set_positions(reshape(x, length(surface), 3))
+         surface.get_potential_energy() 
+      end
 
-if relax_surface
-   f = x -> begin 
-      surface.set_positions(reshape(x, length(surface), 3))
-      surface.get_potential_energy() 
+      # gradient of energy as a function of strain
+      g = x -> begin
+         surface.set_positions(reshape(x, length(surface), 3))
+         -reshape(surface.get_forces(), :) 
+      end
+      x0 = reshape(surface.get_positions(), :)   
+      print(optimize(f, g, x0, inplace=false))
    end
-
-   # gradient of energy as a function of strain
-   g = x -> begin
-      surface.set_positions(reshape(x, length(surface), 3))
-      -reshape(surface.get_forces(), :) 
-   end
-   x0 = reshape(surface.get_positions(), :)   
-   print(optimize(f, g, x0, inplace=false))
+   γ = (surface.get_potential_energy() - bulk.get_potential_energy()) / (2 * area)
 end
 
-γ = (surface.get_potential_energy() - bulk.get_potential_energy()) / (2 * area)
+γ = surface_energy(relax=relax_surface)
 @show γ, γ / (ase_units.J / ase_units.m^2)
 
 # build the final crystal in correct orientation
-
 r_cut = imsw._quip_atoms.cutoff # cutoff distance for the potential
 r_I = r_III - 3 * r_cut
 
