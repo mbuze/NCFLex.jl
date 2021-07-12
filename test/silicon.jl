@@ -24,7 +24,7 @@ crack_surface = [1, 1, 1] # y-diretion, the surface which is opened
 crack_front = [1, -1, 0] # z-direction, crack front line
 k = 1.0 # in units of K_G
 relax_elasticity = false # if true, C_ij matrix computed with internal relaxation
-relax_surface = true # if true, surface energy computed with internal relaxation
+relax_surface = false # if true, surface energy computed with internal relaxation
 
 imsw = quippy_potential.Potential("IP SW", param_str="""
 <SW_params n_types="1">
@@ -83,7 +83,6 @@ function surface_energy(; shift=2.0, relax=true)
    surface.set_cell(cell)
    surface.calc = imsw
    area = norm(cross(bulk.cell.array[:, 1], bulk.cell.array[:, 2]))
-   γ = (surface.get_potential_energy() - bulk.get_potential_energy()) / (2 * area)
 
    if relax
       surface.rattle()
