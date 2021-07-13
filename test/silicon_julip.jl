@@ -99,21 +99,23 @@ X = positions(cluster) |> mat
 
 # object for computing the CLE displacments and gradients
 crk = crack.CubicCrystalCrack(crack_surface, crack_front, 
-                              C11=C[1,1], C12=C[1,2], C44=C[4, 4])
+                              C11=C11, C12=C12, C44=C44)
 
-
-k_G = crk.k1g(γ / (ase_units.J / ase_units.m^2)) # NB: surface energy should be passed in GPa * A = 0.1 * J/m^2 
+k_G = crk.k1g(γ)
 
 x0, y0, _ = diag(cluster.cell) ./ 2
 
-rac = RectilinearAnisotropicCrack(PlaneStrain(), C11, C12, C44, [1, 1, 1], [1, -1, 0])
+rac = RectilinearAnisotropicCrack(PlaneStrain(), C11, C12, C44, 
+                                  crack_surface, crack_front)
 
 u, ∇u = u_CLE(rac, cluster, x0, y0)
+
+k_G = k1g(rac, γ)
 
 # check gradient wrt finite differnces
 @assert maximum((central_fdm(2, 1))(α -> u(1.0, α), 1.2) - ∇u(1.0, 1.2)) < 1e-6
 
-u0 = u(0.5 * k_G, 0.0)
+u0 = u(k_G, 0.0)
 
 scatter(X[1, :] + u0[1, :], X[2, :] + u0[2, :],
         color=region, aspect_ratio=:equal, label=nothing)
