@@ -169,7 +169,7 @@ function RectilinearAnisotropicCrack(a22::T, μ1::Complex{T}, μ2::Complex{T}, p
 end
 
 function RectilinearAnisotropicCrack(a11::T, a22::T, a12::T, a16::T, a26::T, a66::T) where {T}
-    p = Polynomial([ a11, -2*a16, 2*a12 + a66, -2*a26, a22 ] )
+    p = Polynomial(reverse([ a11, -2*a16, 2*a12 + a66, -2*a26, a22 ] )) # NB: opposite order to np.poly1d()
     μ1, μ1s, μ2, μ2s = roots(p)
     (μ1 != conj(μ1s) ||  μ2 != conj(μ2s)) && error("Roots not in pairs.")
 
@@ -217,8 +217,6 @@ r : array
     Distances from the crack tip.
 theta : array
     Angles with respect to the plane of the crack.
-k : float
-    Stress intensity factor.
 
 Returns
 -------
@@ -247,8 +245,6 @@ r : array_like
     Distances from the crack tip.
 theta : array_like
     Angles with respect to the plane of the crack.
-k : float
-    Stress intensity factor.
 
 Returns
 -------
@@ -289,8 +285,6 @@ r : array
     Distances from the crack tip.
 theta : array
     Angles with respect to the plane of the crack.
-k : float
-    Stress intensity factor.
 
 Returns
 -------
@@ -310,9 +304,9 @@ function stresses(crack::RectilinearAnisotropicCrack, cyl::Cylindrical)
     h2 = sqrt.( cos.(cyl.θ) + crack.μ2 * sin.(cyl.θ) )
     h3 = sqrt.( cos.(cyl.θ) + crack.μ1 * sin.(cyl.θ) )
 
-    sig_x  = f * real.(h1 * (crack.μ2/h2 - crack.μ1/h3))
-    sig_y  = f * real.(crack.inv_μ1_μ2 * (crack.μ1/h2 - crack.μ2/h3))
-    sig_xy = f * real.(h1 * (1/h3 - 1/h2))
+    sig_x  = f * real.(h1 * (crack.μ2 ./ h2 - crack.μ1 ./ h3))
+    sig_y  = f * real.(crack.inv_μ1_μ2 * (crack.μ1 ./ h2 - crack.μ2 ./ h3))
+    sig_xy = f * real.(h1 * (1 ./ h3 - 1 ./ h2))
 
     return sig_x, sig_y, sig_xy
 end
