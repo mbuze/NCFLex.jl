@@ -315,9 +315,8 @@ end
 K1G, Griffith critical stress intensity in mode I fracture
 """
 function k1g(crack::RectilinearAnisotropicCrack, surface_energy::AbstractFloat)
-    return sqrt(imag(-4 * surface_energy / 
-                     (crack.a22 * 
-                      ((crack.μ1 + crack.μ2) / (crack.μ1  * crack.μ2 )))))
+    return sqrt(abs(4 * surface_energy / 
+                     imag(crack.a22 * ((crack.μ1 + crack.μ2) / (crack.μ1  * crack.μ2 )))))
 end
 
 # Cartesian coordinate convenience wrappers
