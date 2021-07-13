@@ -98,24 +98,39 @@ cluster = Atoms(ASEAtoms(cluster))
 X = positions(cluster) |> mat
 
 # object for computing the CLE displacments and gradients
-crk = crack.CubicCrystalCrack(crack_surface, crack_front, 
-                              C11=C11, C12=C12, C44=C44)
+C = voigt_moduli(C11, C12, C44)
+Crot = rotate_elastic_moduli(C, rotation_matrix(crack_surface, crack_front))
 
-k_G = crk.k1g(γ)
+# old Python code - we fix the rotated elastic constants
+# to avoid the disrecpancy in Voigt conversion
+crk = crack.CubicCrystalCrack(crack_surface, crack_front, 
+                              Crot=Crot)
+
+# new Julia code
+rac = RectilinearAnisotropicCrack(PlaneStrain(), C11, C12, C44, 
+                                   crack_surface, crack_front)
+
+k_G1 = crk.k1g(γ)
+k_G2 = k1g(rac, γ)
+@assert abs(k_G1 - k_G2) < 1e-3
 
 x0, y0, _ = diag(cluster.cell) ./ 2
 
-rac = RectilinearAnisotropicCrack(PlaneStrain(), C11, C12, C44, 
-                                  crack_surface, crack_front)
+# displacement fields with both approaches
+u1, v1 = crk.displacements(X[1, :], X[2, :], x0, y0, 1.0)
+u2, v2 = displacements(rac, X[1, :] .- x0, X[2, :] .- y0)
 
-u, ∇u = u_CLE(rac, cluster, x0, y0)
-
-k_G = k1g(rac, γ)
+@assert maximum(abs.(u1 - u2)) < 1e-8
+@assert maximum(abs.(v1 - v2)) < 1e-8
 
 # check gradient wrt finite differnces
+u, ∇u = u_CLE(rac, cluster, x0, y0)
+
 @assert maximum((central_fdm(2, 1))(α -> u(1.0, α), 1.2) - ∇u(1.0, 1.2)) < 1e-6
 
-u0 = u(k_G, 0.0)
+##
+
+# plotting the result - to be removed from final test
 
 scatter(X[1, :] + u0[1, :], X[2, :] + u0[2, :],
         color=region, aspect_ratio=:equal, label=nothing)
