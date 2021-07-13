@@ -112,7 +112,7 @@ rac = RectilinearAnisotropicCrack(PlaneStrain(), C11, C12, C44,
 
 k_G1 = crk.k1g(γ)
 k_G2 = k1g(rac, γ)
-@assert abs(k_G1 - k_G2) < 1e-3
+@assert abs(k_G1 - k_G2) < 1e-8
 
 x0, y0, _ = diag(cluster.cell) ./ 2
 
@@ -132,6 +132,6 @@ u, ∇u = u_CLE(rac, cluster, x0, y0)
 
 # plotting the result - to be removed from final test
 
-scatter(X[1, :] + u0[1, :], X[2, :] + u0[2, :],
-        color=region, aspect_ratio=:equal, label=nothing)
+# scatter(X[1, :] + u0[1, :], X[2, :] + u0[2, :],
+#         color=region, aspect_ratio=:equal, label=nothing)
 
