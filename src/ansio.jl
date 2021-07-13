@@ -16,7 +16,7 @@ import JuLIPMaterials.CLE: elastic_moduli, voigt_moduli
 
 export RectilinearAnisotropicCrack, PlaneStrain, PlaneStress
 export elastic_moduli, voigt_moduli, cubic_moduli, rotation_matrix
-export rotate_elastic_moduli, displacements, stresses, deformation_gradient, k1g
+export rotate_elastic_moduli, displacements, stresses, deformation_gradient, k1g, u_CLE
 
 """
 * `elastic_moduli(at::AbstractAtoms)`
@@ -227,8 +227,8 @@ u : array
 v : array
     Displacements normal to the plane of the crack.
 """
-function displacements(crack::RectilinearAnisotropicCrack, k::AbstractFloat, cyl::Cylindrical)
-    h1 = k * sqrt.(2.0 * cyl.r / π)
+function displacements(crack::RectilinearAnisotropicCrack, cyl::Cylindrical)
+    h1 = sqrt.(2.0 * cyl.r / π)
     h2 = sqrt.( cos.(cyl.θ) .+ crack.μ2 * sin.(cyl.θ) )
     h3 = sqrt.( cos.(cyl.θ) .+ crack.μ1 * sin.(cyl.θ) )
 
@@ -264,8 +264,8 @@ dv_dy : array
     Derivatives of displacements normal to the plane of the crack
     perpendicular to the plane.
 """
-function deformation_gradient(crack::RectilinearAnisotropicCrack, k::AbstractFloat, cyl::Cylindrical)
-    f = k ./ sqrt.(2 * π * cyl.r)
+function deformation_gradient(crack::RectilinearAnisotropicCrack, cyl::Cylindrical)
+    f = 1 ./ sqrt.(2 * π * cyl.r)
 
     h1 = (crack.μ1 * crack.μ2) * crack.inv_μ1_μ2
     h2 = sqrt.( cos.(cyl.θ) + crack.μ2 * sin.(cyl.θ) )
@@ -274,7 +274,7 @@ function deformation_gradient(crack::RectilinearAnisotropicCrack, k::AbstractFlo
     du_dx = f .* real.( crack.inv_μ1_μ2 * ( crack.μ1_p2 ./ h2 - crack.μ2_p1 ./ h3 ) )
     du_dy = f .* real.( h1 * ( crack.p2 ./ h2 - crack.p1 ./ h3 ) )
 
-    dv_dx = f .* real.( crack.inv_μ1_μ2 * ( crack.μ1_q2/h2 - crack.μ2_q1/h3 ) )
+    dv_dx = f .* real.( crack.inv_μ1_μ2 * ( crack.μ1_q2 ./ h2 - crack.μ2_q1 ./ h3 ) )
     dv_dy = f .* real.( h1 * ( crack.q2 ./ h2 - crack.q1 ./ h3 ) )
 
     return du_dx, du_dy, dv_dx, dv_dy
@@ -303,8 +303,8 @@ sig_y : array
 sig_xy : array
     Off-diagonal component of the stress tensor.
 """
-function stresses(crack::RectilinearAnisotropicCrack, k::AbstractFloat, cyl::Cylindrical)
-    f = k ./ sqrt.(2.0 * π * cyl.r)
+function stresses(crack::RectilinearAnisotropicCrack, cyl::Cylindrical)
+    f = 1 ./ sqrt.(2.0 * π * cyl.r)
 
     h1 = (crack.μ1 * crack.μ2) * crack.inv_μ1_μ2
     h2 = sqrt.( cos.(cyl.θ) + crack.μ2 * sin.(cyl.θ) )
@@ -328,11 +328,30 @@ end
 
 # Cartesian coordinate convenience wrappers
 
-displacements(crack::RectilinearAnisotropicCrack, k::AbstractFloat, cart::Cartesian) = displacements(crack, k, Cylindrical(cart))
-displacements(crack::RectilinearAnisotropicCrack, k::AbstractFloat, x::AbstractVector, y::AbstractVector) = displacements(crack, k, Cartesian(x, y))
+displacements(crack::RectilinearAnisotropicCrack, cart::Cartesian) = displacements(crack, Cylindrical(cart))
+displacements(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVector) = displacements(crack, Cartesian(x, y))
 
-deformation_gradient(crack::RectilinearAnisotropicCrack, k::AbstractFloat, cart::Cartesian) = deformation_gradient(crack, k, Cylindrical(cart))
-deformation_gradient(crack::RectilinearAnisotropicCrack, k::AbstractFloat, x::AbstractVector, y::AbstractVector) = deformation_gradient(crack, k, Cartesian(x, y))
+deformation_gradient(crack::RectilinearAnisotropicCrack, cart::Cartesian) = deformation_gradient(crack, Cylindrical(cart))
+deformation_gradient(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVector) = deformation_gradient(crack, Cartesian(x, y))
 
-stresses(crack::RectilinearAnisotropicCrack, k::AbstractFloat, cart::Cartesian) = stresses(crack, k, Cylindrical(cart))
-stresses(crack::RectilinearAnisotropicCrack, k::AbstractFloat, x::AbstractVector, y::AbstractVector) = stresses(crack, k, Cartesian(x, y))
+stresses(crack::RectilinearAnisotropicCrack, cart::Cartesian) = stresses(crack, Cylindrical(cart))
+stresses(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVector) = stresses(crack, Cartesian(x, y))
+
+function u_CLE(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVector)
+    function u(k, α) 
+        ux, uy = displacements(crack, x .- α, y)
+        return k * [ux uy]
+    end
+
+    function ∇u(k, α)
+        du_dx, _, dv_dx, _ = deformation_gradient(crack, x .- α, y)
+        return  -k * [du_dx dv_dx]
+    end
+
+    return u, ∇u
+end
+
+function u_CLE(crack::RectilinearAnisotropicCrack, crystal::AbstractAtoms, x0::AbstractFloat, y0::AbstractFloat)
+    X = positions(crystal) |> mat
+    return u_CLE(crack, X[1, :] .- x0, X[1, :] .- y0)
+end

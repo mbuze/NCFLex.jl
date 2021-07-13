@@ -107,29 +107,12 @@ k_G = crk.k1g(γ / (ase_units.J / ase_units.m^2)) # NB: surface energy should be
 
 x0, y0, _ = diag(cluster.cell) ./ 2
 
-function u_cle(α)
-   u1, u2 = crk.displacements(X[1, :], X[2, :], x0 + α, y0, k * k_G)
-   u = [u1'; u2'; zeros(length(cluster))']
-   return u
-end
-
-function ∇u_cle(α)
-   Du = crk.deformation_gradient(X[1, :], X[2, :], x0 + α, y0, k * k_G)
-   ∇u = vcat(-(Du[:, 1, 1] .- 1.0)', 
-             -Du[:, 1, 2]',
-              zeros(length(cluster))')
-   return ∇u
-end
-
-# check gradient wrt finite differnces
-u, ∇u = u_cle(0.0), ∇u_cle(0.0)
-@assert maximum((central_fdm(2, 1))(u_cle, 0.0) - ∇u) < 1e-6
-
 rac = RectilinearAnisotropicCrack(PlaneStrain(), C11, C12, C44, [1, 1, 1], [1, -1, 0])
 
-ux, uy = displacements(rac, k_G, X[1, :] .- x0, X[2, :] .- y0)
+u, ∇u = u_CLE(rac, cluster, x0, y0)
 
-du_dx, du_dy, dv_dx, dv_dy = deformation_gradient(rac, k_G, X[1, :] .- x0, X[2, :] .- y0)
+# check gradient wrt finite differnces
+@assert maximum((central_fdm(2, 1))(α -> u(1.0, α), 0.0) - ∇u(1.0, 0.0)) < 1e-6
 
 scatter(X[1, :] + ux, X[2, :] + uy,
         color=region, aspect_ratio=:equal, label=nothing)
