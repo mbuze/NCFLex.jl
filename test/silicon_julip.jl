@@ -107,33 +107,33 @@ C = voigt_moduli(unitcell)
 
 ##
 
-function surface_energy(shift)
-    make_bulk() = Atoms(ASEAtoms(ase_lattice_cubic.Diamond(symbol="Si", 
-                                latticeconstant=alat, 
-                                directions=[[1,-1,0],[1,1,-2],[1,1,1]]) * (1, 1, 10)))
-    bulk_at = make_bulk()                             
-    set_calculator!(bulk_at, imsw)
-    surface = make_bulk() #copy(bulk_at) # must be a better way to do this in JuLIP
-    X = positions(surface) |> mat
-    X[3, :] .+= shift
-    set_positions!(surface, X)
-    c = Matrix(surface.cell)
-    c[3, :] += [0.0, 0.0, 10.0]
-    set_cell!(surface, c)
-    fixedcell!(surface)
-    set_calculator!(surface, imsw)
-    area = norm(cross(bulk_at.cell[:, 1], bulk_at.cell[:, 2]))
+shift = 2.0
 
-    if relax_surface
-        rattle!(surface, 0.1)
-        res = optimize(x -> energy(surface, x), x -> gradient(surface, x), 
-                    dofs(surface), inplace=false)
-        print(res)
-    end
-    γ = (energy(surface) - energy(bulk_at)) / (2 * area)
+make_bulk() = Atoms(ASEAtoms(ase_lattice_cubic.Diamond(symbol="Si", 
+                            latticeconstant=alat, 
+                            directions=[[1,-1,0],[1,1,-2],[1,1,1]]) * (1, 1, 10)))
+bulk_at = make_bulk()                             
+set_calculator!(bulk_at, imsw)
+surface = make_bulk() #copy(bulk_at) # must be a better way to do this in JuLIP
+X = positions(surface) |> mat
+X[3, :] .+= shift
+set_positions!(surface, X)
+wrap_pbc!(surface)
+c = Matrix(surface.cell)
+c[3, :] += [0.0, 0.0, 10.0]
+set_cell!(surface, c)
+fixedcell!(surface)
+set_calculator!(surface, imsw)
+area = norm(cross(bulk_at.cell[:, 1], bulk_at.cell[:, 2]))
+
+if relax_surface
+    rattle!(surface, 0.1)
+    res = optimize(x -> energy(surface, x), x -> gradient(surface, x), 
+                dofs(surface), inplace=false)
+    print(res)
 end
+γ = (energy(surface) - energy(bulk_at)) / (2 * area)
 
-γ = surface_energy(0.0)
 @show γ, γ / (ase_units.J / ase_units.m^2)
 
 ##
