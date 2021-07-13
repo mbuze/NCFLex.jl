@@ -2,6 +2,7 @@ using LinearAlgebra, NearestNeighbors
 using ForwardDiff
 using Printf
 using SparseArrays
+using JLD
 
 export neighbour_distances
 
@@ -56,48 +57,82 @@ end
 tri = Val{:tri};
 sqr = Val{:sqr};
 hcmb = Val{:hmcb};
-lat_type = Union{tri,sqr,hcmb}
+dc = Val{:dc}
+lat_type = Union{tri,sqr,hcmb,dc}
 
 
 """
 test1
 """
 function domain(;r=5.0, lt::lat_type = tri())
-    dom = Vector{Float64}[]
-    A = nothing
-    if typeof(lt) == tri
-        A = [1.0 0.5 0.0 ; 0.0 0.5*sqrt(3) 0.0; 0.0 0.0 0.0]
-    elseif typeof(lt) == sqr
-        A = [1.0 0.0 0.0 ; 0.0 1.0 0.0; 0.0 0.0 0.0]
-    elseif typeof(lt) == hcmb
-        A = [1.0 0.5 0.0 ; 0.0 0.5*sqrt(3) 0.0; 0.0 0.0 0.0]
-    end
-    rr = round(Int,3.0*r) + 3
-    if typeof(lt) == hcmb
-        shift = [0.5;sqrt(3)/6;0.0]
-        for i in -rr:rr
-            for j in -rr:rr
-                lp = A*[i;j;0.0]
-                push!(dom,lp)
-                push!(dom,lp.+shift)
+    if typeof(lt) == dc
+        return domain_silicon(;r=r)
+    else        
+        
+        dom = Vector{Float64}[]
+        A = nothing
+        if typeof(lt) == tri
+            A = [1.0 0.5 0.0 ; 0.0 0.5*sqrt(3) 0.0; 0.0 0.0 0.0]
+        elseif typeof(lt) == sqr
+            A = [1.0 0.0 0.0 ; 0.0 1.0 0.0; 0.0 0.0 0.0]
+        elseif typeof(lt) == hcmb
+            A = [1.0 0.5 0.0 ; 0.0 0.5*sqrt(3) 0.0; 0.0 0.0 0.0]
+        end
+        rr = round(Int,3.0*r) + 3
+        if typeof(lt) == hcmb
+            shift = [0.5;sqrt(3)/6;0.0]
+            for i in -rr:rr
+                for j in -rr:rr
+                    lp = A*[i;j;0.0]
+                    push!(dom,lp)
+                    push!(dom,lp.+shift)
+                end
+            end
+        else
+            for i in -rr:rr
+                for j in -rr:rr
+                    lp = A*[i;j;0.0]
+                    push!(dom,lp)
+               #     push!(dom,lp.+shift)
+                end
             end
         end
-    else
-        for i in -rr:rr
-            for j in -rr:rr
-                lp = A*[i;j;0.0]
-                push!(dom,lp)
-           #     push!(dom,lp.+shift)
-            end
-        end
+        II = sortperm(norm.(dom))
+        dom = dom[II]
+        lc = norm(dom[1].-dom[2])
+        dom = (1.0/lc)*dom
+        II = findall(norm.(dom) .< r + 0.01)
+        return dom[II]
     end
-    II = sortperm(norm.(dom))
-    dom = dom[II]
-    lc = norm(dom[1].-dom[2])
-    dom = (1.0/lc)*dom
-    II = findall(norm.(dom) .< r + 0.01)
-    return dom[II]
 end
+
+function domain_silicon(;r=5.0)
+    #nn_d = 2.35167023739006;
+    AA = [[0;0;0],[0;2;2], [2;0;2],[2;2;0],
+          [3;3;3],[3;1;1],[1;3;1],[1;1;3]]
+    dom = Vector{Float64}[]
+    rr = round(Int,r/16) + 2
+    for i=-rr:rr
+        for j=-rr:rr
+            for k =-rr:rr
+                for x in AA
+                    push!(dom,x.+[4*i;4*j;4*k])
+                end
+            end
+        end
+    end
+     II = sortperm(norm.(dom))
+     dom = dom[II]
+     lc = norm(dom[1].-dom[2])
+     dom = (1.0/lc)*dom
+     II = findall(norm.(dom) .< r + 0.01)
+     dom = dom[II]
+    
+     RM = load(@__DIR__()[1:end-3] * "/data/rot_mat_silicon.jld")["RM"]
+     dom = [RM*x for x in dom]
+    return dom
+end
+
 
 """
 test2
@@ -176,6 +211,8 @@ end
 
 d1UHAT(at,x) = ForwardDiff.derivative(y->UHAT(at,y),x)
 d1d1UHAT(at,x) = ForwardDiff.derivative(y->d1UHAT(at,y),x)
+
+
 
 function site_energy_pp(at,i,U::AbstractVector{T}) where T
     E = 0.0
