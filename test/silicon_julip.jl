@@ -10,8 +10,6 @@ using FiniteDifferences
 
 @pyimport ase.units as ase_units
 @pyimport ase.lattice.cubic as ase_lattice_cubic
-@pyimport ase.build as ase_build
-@pyimport ase.constraints as ase_constraints
 @pyimport matscipy.fracture_mechanics.crack as crack
 @pyimport matscipy.fracture_mechanics.clusters as clusters
 @pyimport matscipy.elasticity as elasticity
@@ -40,71 +38,14 @@ res = optimize(x -> energy(unitcell, x), x -> gradient(unitcell, x),
 alat = unitcell.cell[1, 1]
 unitcell = bulk(:Si, cubic=true)
 set_cell!(unitcell, alat * I(3))
-set_calculator!(unitcell, imsw)
+set_calculator!(unitcell, imsw);
 
 ##
 
 # 6x6 elastic constant matrix
-
-# code taken from https://github.com/cortner/JuLIPMaterials.jl/blob/master/src/CLE.jl
-# (except that sign of stresses had to be changed to give positive C values,
-#  and there appears to be a factor of two error)
-
-"""
-* `elastic_moduli(at::AbstractAtoms)`
-* `elastic_moduli(calc::AbstractCalculator, at::AbstractAtoms)`
-* `elastic_moduli(C::Matrix)` : convert Voigt moduli to 4th order tensor
-computes the 3 x 3 x 3 x 3 elastic moduli tensor
-*Notes:* this is a naive implementation that does not exploit
-any symmetries at all; this means it performs 9 centered finite-differences
-on the stress. The error should be in the range 1e-10
-"""
-elastic_moduli(at::AbstractAtoms) = elastic_moduli(calculator(at), at)
-
-function elastic_moduli(calc::AbstractCalculator, at::AbstractAtoms)
-   F0 = cell(at)' |> Matrix
-   Ih = Matrix(1.0*I, 3,3)
-   h = eps()^(1/3)
-   C = zeros(3,3,3,3)
-   for i = 1:3, a = 1:3
-      Ih[i,a] += h
-      apply_defm!(at, Ih)
-      Sp = -stress(calc, at)
-      Ih[i,a] -= 2*h
-      apply_defm!(at, inv(Ih))
-      Sm = -stress(calc, at)
-      C[i, a, :, :] = (Sp - Sm) / (2*h)
-      Ih[i,a] += h
-   end
-   # symmetrise it - major symmetries C_{iajb} = C_{jbia}
-   for i = 1:3, a = 1:3, j=1:3, b=1:3
-      C[i,a,j,b] = C[j,b,i,a] = 0.5 * (C[i,a,j,b] + C[j,b,i,a])
-   end
-   # minor symmetries - C_{iajb} = C_{iabj}
-   for i = 1:3, a = 1:3, j=1:3, b=1:3
-      C[i,a,j,b] = C[i,a,b,j] = 0.5 * (C[i,a,j,b] + C[i,a,b,j])
-   end
-   return 2.0 * C # not sure where the factor of two error is exactly
-end
-
-"""
-`voigt_moduli`: compute elastic moduli in the format of Voigt moduli.
-Methods:
-* `voigt_moduli(at)`
-* `voigt_moduli(calc, at)`
-* `voigt_moduli(C)`
-"""
-voigt_moduli(at::AbstractAtoms) = voigt_moduli(calculator(at), at)
-
-voigt_moduli(calc::AbstractCalculator, at::AbstractAtoms) =
-   voigt_moduli(elastic_moduli(calc, at))
-
-const voigtinds = [1, 5, 9, 4, 7, 8]
-
-voigt_moduli(C::Array{T,4}) where {T} = reshape(C, 9, 9)[voigtinds, voigtinds]
-
 C = voigt_moduli(unitcell)
-
+C11, C12, C44 = cubic_moduli(C)
+@show C11, C12, C44
 ##
 
 shift = 2.0
@@ -184,6 +125,12 @@ end
 u, ∇u = u_cle(0.0), ∇u_cle(0.0)
 @assert maximum((central_fdm(2, 1))(u_cle, 0.0) - ∇u) < 1e-6
 
-scatter(X[1, :] + u[1, :], X[2, :] + u[2, :],
+rac = RectilinearAnisotropicCrack(PlaneStrain(), C11, C12, C44, [1, 1, 1], [1, -1, 0])
+
+ux, uy = displacements(rac, k_G, X[1, :] .- x0, X[2, :] .- y0)
+
+du_dx, du_dy, dv_dx, dv_dy = deformation_gradient(rac, k_G, X[1, :] .- x0, X[2, :] .- y0)
+
+scatter(X[1, :] + ux, X[2, :] + uy,
         color=region, aspect_ratio=:equal, label=nothing)
 
