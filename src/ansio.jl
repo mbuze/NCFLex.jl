@@ -340,12 +340,12 @@ stresses(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVecto
 function u_CLE(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVector)
     function u(k, α) 
         ux, uy = displacements(crack, x .- α, y)
-        return k * [ux uy]
+        return k * [ux uy]'
     end
 
     function ∇u(k, α)
         du_dx, _, dv_dx, _ = deformation_gradient(crack, x .- α, y)
-        return  -k * [du_dx dv_dx]
+        return  -k * [du_dx dv_dx]'
     end
 
     return u, ∇u
@@ -353,5 +353,5 @@ end
 
 function u_CLE(crack::RectilinearAnisotropicCrack, crystal::AbstractAtoms, x0::AbstractFloat, y0::AbstractFloat)
     X = positions(crystal) |> mat
-    return u_CLE(crack, X[1, :] .- x0, X[1, :] .- y0)
+    return u_CLE(crack, X[1, :] .- x0, X[2, :] .- y0)
 end

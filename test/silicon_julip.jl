@@ -19,7 +19,6 @@ using FiniteDifferences
 r_III = 32.0 # radius of region III. Other regions are derived from this
 crack_surface = [1, 1, 1] # y-diretion, the surface which is opened
 crack_front = [1, -1, 0] # z-direction, crack front line
-k = 1.0 # in units of K_G
 relax_elasticity = false # if true, C_ij matrix computed with internal relaxation
 relax_surface = false # if true, surface energy computed with internal relaxation
 
@@ -112,8 +111,10 @@ rac = RectilinearAnisotropicCrack(PlaneStrain(), C11, C12, C44, [1, 1, 1], [1, -
 u, ∇u = u_CLE(rac, cluster, x0, y0)
 
 # check gradient wrt finite differnces
-@assert maximum((central_fdm(2, 1))(α -> u(1.0, α), 0.0) - ∇u(1.0, 0.0)) < 1e-6
+@assert maximum((central_fdm(2, 1))(α -> u(1.0, α), 1.2) - ∇u(1.0, 1.2)) < 1e-6
 
-scatter(X[1, :] + ux, X[2, :] + uy,
+u0 = u(0.5 * k_G, 0.0)
+
+scatter(X[1, :] + u0[1, :], X[2, :] + u0[2, :],
         color=region, aspect_ratio=:equal, label=nothing)
 
