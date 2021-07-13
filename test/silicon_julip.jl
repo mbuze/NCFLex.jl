@@ -161,7 +161,8 @@ X = positions(cluster) |> mat
 crk = crack.CubicCrystalCrack(crack_surface, crack_front, 
                               C11=C[1,1], C12=C[1,2], C44=C[4, 4])
 
-k_G = crk.k1g(γ)
+
+k_G = crk.k1g(γ / (ase_units.J / ase_units.m^2)) # NB: surface energy should be passed in GPa * A = 0.1 * J/m^2 
 
 x0, y0, _ = diag(cluster.cell) ./ 2
 
@@ -183,6 +184,6 @@ end
 u, ∇u = u_cle(0.0), ∇u_cle(0.0)
 @assert maximum((central_fdm(2, 1))(u_cle, 0.0) - ∇u) < 1e-6
 
-scatter(X[1, :] + u[1, :], X[2, :] + u[2. :],
+scatter(X[1, :] + u[1, :], X[2, :] + u[2, :],
         color=region, aspect_ratio=:equal, label=nothing)
 
