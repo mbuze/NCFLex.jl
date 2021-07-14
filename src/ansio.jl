@@ -127,20 +127,19 @@ struct PlaneStrain <: StressState end
 
 abstract type CoordinateSystem end
 
-struct Cartesian{T} <: CoordinateSystem  where {T}
-    x::Vector{T}
-    y::Vector{T}
+struct Cartesian <: CoordinateSystem
+    x::AbstractVector
+    y::AbstractVector
 end
 
-struct Cylindrical{T} <: CoordinateSystem where {T}
-    r::Vector{T}
-    θ::Vector{T}
+struct Cylindrical <: CoordinateSystem
+    r::AbstractVector
+    θ::AbstractVector
 end
 
 Cylindrical(cart::Cartesian) = Cylindrical(sqrt.(cart.x.^2 + cart.y.^2), atan.(cart.y, cart.x))
 
 Cartesian(cyl::Cylindrical) = Cartesian(cyl.r * cos.(cyl.θ), cyl.r * sin.(cyl.θ))
-
 
 struct RectilinearAnisotropicCrack{T <: Number} <: Crack
     a22::T
@@ -203,9 +202,9 @@ function RectilinearAnisotropicCrack(ss::StressState, C::AbstractMatrix, crack_s
     return RectilinearAnisotropicCrack(ss, S)
 end
 
-RectilinearAnisotropicCrack{T}(ss::StressState, 
-                            C11::T, C12::T, C44::T, 
-                            crack_surface::Vector{T}, crack_front::Vector{T}) where {T} = 
+RectilinearAnisotropicCrack(ss::StressState, 
+                            C11, C12, C44, 
+                            crack_surface::AbstractVector, crack_front::AbstractVector) = 
                                 RectilinearAnisotropicCrack(ss, voigt_moduli(C11, C12, C44), crack_surface, crack_front)
 
 """
@@ -314,37 +313,37 @@ end
 """
 K1G, Griffith critical stress intensity in mode I fracture
 """
-function k1g(crack::RectilinearAnisotropicCrack{T}, surface_energy::T) where {T}
+function k1g(crack::RectilinearAnisotropicCrack, surface_energy)
     return sqrt(abs(4 * surface_energy / 
                      imag(crack.a22 * ((crack.μ1 + crack.μ2) / (crack.μ1  * crack.μ2 )))))
 end
 
 # Cartesian coordinate convenience wrappers
 
-displacements(crack::RectilinearAnisotropicCrack{T}, cart::Cartesian{T}) = displacements(crack, Cylindrical(cart)) where {T}
-displacements(crack::RectilinearAnisotropicCrack{T}, x::Vector{T}, y::Vector{T}) = displacements(crack, Cartesian(x, y)) where {T}
+displacements(crack::RectilinearAnisotropicCrack, cart::Cartesian) = displacements(crack, Cylindrical(cart)) 
+displacements(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVector) = displacements(crack, Cartesian(x, y)) 
 
-deformation_gradient(crack::RectilinearAnisotropicCrack{T}, cart::Cartesian{T}) = deformation_gradient(crack, Cylindrical(cart))
-deformation_gradient(crack::RectilinearAnisotropicCrack{T}, x::Vector{T}, y::Vector{T}) = deformation_gradient(crack, Cartesian(x, y))
+deformation_gradient(crack::RectilinearAnisotropicCrack, cart::Cartesian) = deformation_gradient(crack, Cylindrical(cart))
+deformation_gradient(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVector) = deformation_gradient(crack, Cartesian(x, y))
 
-stresses(crack::RectilinearAnisotropicCrack{T}, cart::Cartesian{T}) = stresses(crack, Cylindrical(cart)) where{T}
-stresses(crack::RectilinearAnisotropicCrack{T}, x::Vector{T}, y::Vector{T}) = stresses(crack, Cartesian(x, y)) where {T}
+stresses(crack::RectilinearAnisotropicCrack, cart::Cartesian) = stresses(crack, Cylindrical(cart)) 
+stresses(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVector) = stresses(crack, Cartesian(x, y)) 
 
-function u_CLE(crack::RectilinearAnisotropicCrack{T}, x::Vector{T}, y::Vector{T}) where {T}
+function u_CLE(crack::RectilinearAnisotropicCrack, x::AbstractVector, y::AbstractVector)
     function u(k, α) 
         ux, uy = displacements(crack, x .- α, y)
         return k * [ux uy]'
     end
 
-    function ∇u(k, α)
+    function du(k, α)
         du_dx, _, dv_dx, _ = deformation_gradient(crack, x .- α, y)
         return  -k * [du_dx dv_dx]'
     end
 
-    return u, ∇u
+    return u, du
 end
 
-function u_CLE(crack::RectilinearAnisotropicCrack, crystal::AbstractAtoms{T}, x0{T}, y0{T}) where {T}
+function u_CLE(crack::RectilinearAnisotropicCrack, crystal::AbstractAtoms{T}, x0::T, y0::T) where {T}
     X = positions(crystal) |> mat
     return u_CLE(crack, X[1, :] .- x0, X[2, :] .- y0)
-end
+end 

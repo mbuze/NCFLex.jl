@@ -35,6 +35,7 @@ res = optimize(x -> energy(unitcell, x), x -> gradient(unitcell, x),
 
 # relaxed lattice constant
 alat = unitcell.cell[1, 1]
+@show alat
 unitcell = bulk(:Si, cubic=true)
 set_cell!(unitcell, alat * I(3))
 set_calculator!(unitcell, imsw);
@@ -44,7 +45,7 @@ set_calculator!(unitcell, imsw);
 # 6x6 elastic constant matrix
 C = voigt_moduli(unitcell)
 C11, C12, C44 = cubic_moduli(C)
-@show C11, C12, C44
+@show C11, C12, C44;
 ##
 
 shift = 2.0
