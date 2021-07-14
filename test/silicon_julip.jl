@@ -16,7 +16,7 @@ using FiniteDifferences
 
 # Parameters
 
-r_III = 32.0 # radius of region III. Other regions are derived from this
+r_III = 100.0 # radius of region III. Other regions are derived from this
 crack_surface = [1, 1, 1] # y-diretion, the surface which is opened
 crack_front = [1, -1, 0] # z-direction, crack front line
 relax_elasticity = false # if true, C_ij matrix computed with internal relaxation
@@ -92,11 +92,11 @@ cryst = clusters.diamond("Si", alat, n,
                          crack_front=crack_front)
 
 # mark regions and convert to JuLIP
-cluster = clusters.set_regions(cryst, r_I, r_cut, r_III)
-region = cluster.arrays["region"]
-cluster = Atoms(ASEAtoms(cluster))
+clust = clusters.set_regions(cryst, r_I, r_cut, r_III)
+region = clust.arrays["region"]
+clust = Atoms(ASEAtoms(clust))
 
-X = positions(cluster) |> mat
+X = positions(clust) |> mat
 
 # object for computing the CLE displacments and gradients
 C = voigt_moduli(C11, C12, C44)
@@ -115,7 +115,7 @@ k_G1 = crk.k1g(γ)
 k_G2 = k1g(rac, γ)
 @assert abs(k_G1 - k_G2) < 1e-8
 
-x0, y0, _ = diag(cluster.cell) ./ 2
+x0, y0, _ = diag(clust.cell) ./ 2
 
 # displacement fields with both approaches
 u1, v1 = crk.displacements(X[1, :], X[2, :], x0, y0, 1.0)
@@ -125,14 +125,43 @@ u2, v2 = displacements(rac, X[1, :] .- x0, X[2, :] .- y0)
 @assert maximum(abs.(v1 - v2)) < 1e-8
 
 # check gradient wrt finite differnces
-u, ∇u = u_CLE(rac, cluster, x0, y0)
+u, ∇u = u_CLE(rac, clust, x0, y0)
 
 @assert maximum((central_fdm(2, 1))(α -> u(1.0, α), 1.2) - ∇u(1.0, 1.2)) < 1e-6
 
+X0 = copy(X)
+
 ##
 
-# plotting the result - to be removed from final test
+U = [u(1.0, 0.0); zeros(length(clust))']
 
-# scatter(X[1, :] + u0[1, :], X[2, :] + u0[2, :],
+X = X0 + U
+set_positions!(clust, X)
+
+# scatter(X[1, :], X[2, :],
 #         color=region, aspect_ratio=:equal, label=nothing)
 
+@pyimport quippy.potential as quippy_potential
+@pyimport atomistica
+
+imswq = quippy_potential.Potential("IP SW", param_str="""
+<SW_params n_types="1">
+<per_type_data type="1" atomic_num="14" />
+<per_pair_data atnum_i="14" atnum_j="14" AA="7.049556277" BB="0.6022245584"
+      p="4" q="0" a="1.80" sigma="2.0951" eps="2.1675" />
+<per_triplet_data atnum_c="14" atnum_j="14" atnum_k="14"
+      lambda="42.0" gamma="1.20" eps="2.1675" />
+</SW_params>
+""")
+
+
+r = sqrt.((X0[1,:] .- x0).^2 + (X0[2,:] .- y0).^2)
+p = plot()
+for (label, calculator) in zip(("JuLIP SW", "QUIP SW", "TersoffScr", "KumagaiScr"),
+                                (imsw, ASECalculator(imswq), ASECalculator(atomistica.TersoffScr()), 
+                                ASECalculator(atomistica.KumagaiScr())))
+    @show label
+    set_calculator!(clust, calculator)
+    scatter!(r, norm.(forces(clust)), yscale=:log10, xscale=:log10, label=label, legend=:bottomleft)
+end
+p
