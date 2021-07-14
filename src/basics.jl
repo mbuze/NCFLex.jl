@@ -195,15 +195,15 @@ end
 
 
 
-uhat_m1_iso(r,theta) = sqrt(r)*[3*cos(theta/2) - cos(3*theta/2); 5*sin(theta/2) - sin(3*theta/2); 0]
+uhat_m1_iso(r,theta;kappa=2.0) = sqrt(r)*[(2*kappa-1)*cos(theta/2) - cos(3*theta/2); (2*kappa+1)*sin(theta/2) - sin(3*theta/2); 0]
 uhat_m3(r,theta) = [0.0;0.0; sqrt(r)*sin(theta/2)]
 
 
-function UHAT(at,lambda)
+function UHAT(at,lambda;kappa = 2.0)
     lc1 = norm(at.X[1]-at.X[2])
     XX = [x .- lc1.*[0.5+lambda;(sqrt(3)/4);0.0] for x in at.X]
     if at.mode1
-        return [uhat_m1_iso(norm(x),angle(x[1]+im*x[2])) for x in XX]
+        return [uhat_m1_iso(norm(x),angle(x[1]+im*x[2]),kappa=kappa) for x in XX]
     else
         return [uhat_m3(norm(x),angle(x[1]+im*x[2])) for x in XX]
     end
