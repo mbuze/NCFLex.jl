@@ -123,3 +123,5 @@ plot!(10 .^ logR, 10 .^ (c[1] .+ c[2] * logR))
 
 # decay should be better than r^(-3/2) and ideally at least r^{-2}
 @test c[2] < -2.0
+
+p
