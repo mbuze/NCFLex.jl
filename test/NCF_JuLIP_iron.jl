@@ -136,7 +136,7 @@ push!(ncf_t.αs,flex2[end])
 simple_continuation_1(ncf_t, theta=0.5, maxSteps=5000,
         dsmin = 0.00001, dsmax = 0.001, ds= 0.001,
         tangentAlgo = SecantPred(), #dotPALC = (x, y) -> dot(x,y)/length(x),
-        linsolver = GMRESKrylovKit(),linearAlgo = MatrixBLS()) #BorderingBLS())
+        linsolver = GMRESKrylovKit(), linearAlgo = BorderingBLS())
 
 #some comments on the function:
 # this is a custom-made routine based on BifurcationKit.jl which stores every data point

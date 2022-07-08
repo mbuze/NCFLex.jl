@@ -464,9 +464,9 @@ function simple_continuation_CLE(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.0
         return [ncf.g(Ubar0,K0,x[1])[end]]
     end
     function JJ_m1(x,p)
-        # return BK.finiteDifferences(u -> FF_m1(u, p), x)
-        @unpack K0 = p
-        return hcat(ncf.h(Ubar0,K0,x[1])[end,end])
+        return BK.finiteDifferences(u -> FF_m1(u, p), x)
+        # @unpack K0 = p
+        # return hcat(ncf.h(Ubar0,K0,x[1])[end,end])
     end
     
     optcont1 = ContinuationPar(dsmin = dsmin, dsmax = dsmax, ds= ds, pMax = pMax, maxSteps=maxSteps,theta=theta,
@@ -576,10 +576,10 @@ function simple_continuation_1(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.000
 #        return [ncf.g(Ubar0,K0,x[1])[end]]
     end
     function JJ_m1(x,p)
-        # return BK.finiteDifferences(u -> FF_m1(u, p), x)
+        return BK.finiteDifferences(u -> FF_m1(u, p), x)
         @unpack K0 = p
         # return ncf.h(x[1:3*N1],K0,x[end])
-       return hcat(ncf.h(Ubar0,K0,x[1])[end,end])
+    #    return hcat(ncf.h(Ubar0,K0,x[1])[end,end])
     end
     
     optcont1 = ContinuationPar(dsmin = dsmin, dsmax = dsmax, ds= ds, pMax = pMax, maxSteps=maxSteps,theta=theta,
