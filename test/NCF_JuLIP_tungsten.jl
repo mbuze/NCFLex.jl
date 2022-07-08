@@ -2,14 +2,14 @@ using LinearAlgebra
 using Statistics
 using PyCall
 
-#I'm just used to PyPlot, feel free to change to Plots
-using PyPlot
-
 using NCFlex
 using Optim
 using LineSearches
-using JuLIP
 using ASE
+using JuLIP
+using JuLIPMaterials
+using JuLIPMaterials.CLE
+using JuLIPMaterials.Fracture
 using FiniteDifferences
 using Roots
 
@@ -25,7 +25,7 @@ const BK = BifurcationKit
 @pyimport ase.lattice.cubic as ase_lattice_cubic
 @pyimport matscipy.fracture_mechanics.crack as crack
 @pyimport matscipy.fracture_mechanics.clusters as clusters
-@pyimport matscipy.elasticity as elasticity
+# @pyimport matscipy.elasticity as elasticity
 
 include("tungsten_MB.jl")
 include("NCF_JuLIP_setup.jl")
@@ -92,7 +92,7 @@ kk = k_st + 0.000206
 xbar_b, gg_b = find_k(ncf_t,xbar1_2,kk,a_st)
 
 # this is now close enough to what we want that we can safely call a Roots.find_zero routine, which can be done as follows:
-K_best, xbar_best = preparation_part_3(ncf_t,kk-0.001,kk+0.001,xbar_b,a_st)
+K_best, xbar_best = preparation_part_3(ncf_t,kk-0.01,kk+0.01,xbar_b,a_st)
 
 # as a result we have our first flex equilibrium triplet (xbar_best,K_best,a_st):
 @show ncf_t.g(xbar_best,K_best,a_st)[end];
@@ -130,11 +130,13 @@ push!(ncf_t.αs,flex2[end])
 @show ncf_t.Ks
 @show ncf_t.αs
 
+##
+
 # and off we go:
-simple_continuation_1(ncf_t, theta=0.5, maxSteps=10,
-        dsmin = 0.002, dsmax = 0.002, ds= 0.002,
-        tangentAlgo = BorderedPred(),dotPALC = (x, y) -> dot(x,y)/length(x),
-        linsolver = GMRESKrylovKit(),linearAlgo = BorderingBLS())
+simple_continuation_1(ncf_t, theta=0.5, maxSteps=5000,
+        dsmin = 0.00001, dsmax = 0.001, ds= 0.001,
+        tangentAlgo = SecantPred(), #dotPALC = (x, y) -> dot(x,y)/length(x),
+        linsolver = GMRESKrylovKit(),linearAlgo = MatrixBLS()) #BorderingBLS())
 
 #some comments on the function:
 # this is a custom-made routine based on BifurcationKit.jl which stores every data point
@@ -146,16 +148,16 @@ simple_continuation_1(ncf_t, theta=0.5, maxSteps=10,
 
 # it can be called on repeatedly and will just pick up where it left
 
+##
 
-#using PyPlot we can then create a handy figure:
-figure(figsize=(10,4))
+using Plots
 
 iii = length(ncf_t.Ks) - 2
-subplot(121)
-plot(ncf_t.Ks,ncf_t.αs,".-")
-plot(ncf_t.Ks[iii],ncf_t.αs[iii],"r*")
+p1 = Plots.plot(ncf_t.Ks,ncf_t.αs, marker=:o, markersize=2)
+Plots.scatter!([ncf_t.Ks[iii]],[ncf_t.αs[iii]], marker=:star)
+p1
 
-subplot(122)
-plot_at_ncf(ncf_t,ncf_t.Us[iii],ncf_t.Ks[iii],ncf_t.αs[iii])
+# plot_at_ncf(ncf_t,ncf_t.Us[iii],ncf_t.Ks[iii],ncf_t.αs[iii])
 
-plot(ncf_t.αs[iii],0.0,"*")
+# plot(ncf_t.αs[iii],0.0,"*")
+# savefig("tmp.pdf")

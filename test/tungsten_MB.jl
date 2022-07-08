@@ -3,10 +3,11 @@
 r_III = 16.0 # radius of region III. Other regions are derived from this
 crack_surface = [0, 0, 1] # y-diretion, the surface which is opened
 crack_front = [1, -1, 0] # z-direction, crack front line
+crack_direction = cross(crack_surface, crack_front)
 relax_elasticity = false # if true, C_ij matrix computed with internal relaxation
 relax_surface = false # if true, surface energy computed with internal relaxation
 
-eam = EAM("w_fs_eam_core.fs")
+eam = EAM("W.eam.fs")
 
 unitcell = bulk(:W, cubic=true)
 variablecell!(unitcell)
@@ -136,7 +137,7 @@ clust["I_R4"] = I_R4
 
 # object for computing the CLE displacments and gradients
 C = voigt_moduli(C11, C12, C44)
-Crot = rotate_elastic_moduli(C, rotation_matrix(crack_surface, crack_front))
+Crot = rotate_moduli(C, rotation_matrix(x=crack_direction, y=crack_surface, z=crack_front))
 
 # old Python code - we fix the rotated elastic constants
 # to avoid the disrecpancy in Voigt conversion

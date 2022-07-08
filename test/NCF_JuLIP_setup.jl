@@ -456,7 +456,7 @@ end
 # continuation routine for the CLE-only prediction 
 function simple_continuation_CLE(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.00004,
             pMax = 4.1, maxSteps=100,theta=0.5,
-            tangentAlgo = BorderedPred(),dotPALC = (x, y) -> dot(x, y)/length(x),
+            tangentAlgo = SecantPred(),dotPALC = (x, y) -> dot(x, y)/length(x),
             linsolver = DefaultLS(),linearAlgo = BorderingBLS())
     N1 = ncf.at["N1"]
     function FF_m1(x, p)
@@ -464,6 +464,7 @@ function simple_continuation_CLE(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.0
         return [ncf.g(Ubar0,K0,x[1])[end]]
     end
     function JJ_m1(x,p)
+        # return BK.finiteDifferences(u -> FF_m1(u, p), x)
         @unpack K0 = p
         return hcat(ncf.h(Ubar0,K0,x[1])[end,end])
     end
@@ -508,18 +509,18 @@ function simple_continuation_CLE(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.0
       #  println(state.stepsizecontrol)
         print(state.step)
         print(" ")
-        if state.step == 0 && state.tau.u[end] < 0.0
-      #      println(state.z_old)
-            state.tau.u = -state.tau.u
-            state.tau.p = -state.tau.p
+        if state.step == 0 && state.τ.u[end] < 0.0
+      #      println(state.z)
+            state.τ.u = -state.τ.u
+            state.τ.p = -state.τ.p
     #        state.stepsizecontrol = false
         end
-        if ~isnothing(cstate1) && cstate1.tau.p*state.tau.p < 0.0
-            if abs(state.tau.p) > 3e-5
+        if ~isnothing(cstate1) && cstate1.τ.p*state.τ.p < 0.0
+            if abs(state.τ.p) > 3e-5
                 state.step = cstate1.step
                 state.z_pred  = cstate1.z_pred
-                state.tau = cstate1.tau
-                state.z_old = cstate1.z_old
+                state.τ = cstate1.τ
+                state.z = cstate1.z
                 state.stepsizecontrol = false
                 state.ds = cstate1.ds/2
                 #println("HA")
@@ -532,16 +533,16 @@ function simple_continuation_CLE(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.0
                 push!(ncf.αs, getx(state)[end])
                 push!(ncf.Ks, getp(state))
                 push!(Sts,state.step)
-                push!(dαs,state.tau.u[end])
-                push!(dKs,state.tau.p)  
+                push!(dαs,state.τ.u[end])
+                push!(dKs,state.τ.p)  
             #    push!(ncf.Us,getx(state)[1:(2*N1)])
             end
         else
             push!(ncf.αs, getx(state)[end])
             push!(ncf.Ks, getp(state))
             push!(Sts,state.step)
-            push!(dαs,state.tau.u[end])
-            push!(dKs,state.tau.p)  
+            push!(dαs,state.τ.u[end])
+            push!(dKs,state.τ.p)  
           #  push!(ncf.Us,getx(state)[1:(2*N1)])
         end
          cstate1 = copy(state)
@@ -566,7 +567,7 @@ end
 
 function simple_continuation_1(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.00004,
             pMax = 4.1, maxSteps=100,theta=0.5,
-            tangentAlgo = BorderedPred(),dotPALC = (x, y) -> dot(x, y)/length(x),
+            tangentAlgo = SecantPred(), #dotPALC = (x, y) -> dot(x, y)/length(x),
             linsolver = DefaultLS(),linearAlgo = BorderingBLS())
     N1 = ncf.at["N1"]
     function FF_m1(x, p)
@@ -575,9 +576,10 @@ function simple_continuation_1(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.000
 #        return [ncf.g(Ubar0,K0,x[1])[end]]
     end
     function JJ_m1(x,p)
+        # return BK.finiteDifferences(u -> FF_m1(u, p), x)
         @unpack K0 = p
-        return ncf.h(x[1:3*N1],K0,x[end])
-#        return hcat(ncf.h(Ubar0,K0,x[1])[end,end])
+        # return ncf.h(x[1:3*N1],K0,x[end])
+       return hcat(ncf.h(Ubar0,K0,x[1])[end,end])
     end
     
     optcont1 = ContinuationPar(dsmin = dsmin, dsmax = dsmax, ds= ds, pMax = pMax, maxSteps=maxSteps,theta=theta,
@@ -590,7 +592,8 @@ function simple_continuation_1(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.000
 
     iter1 = BK.ContIterable(FF_m1, JJ_m1, x0, par, (@lens _.K0),
         optcont1; plot = false, verbosity = 0,
-        tangentAlgo = tangentAlgo,dotPALC = dotPALC, linearAlgo = linearAlgo)
+        tangentAlgo = tangentAlgo, # dotPALC = dotPALC,
+        linearAlgo = linearAlgo)
         #tangentAlgo = SecantPred(),dotPALC = (x, y) -> dot(x, y))
     
     Kdot_count = 0
@@ -627,18 +630,18 @@ function simple_continuation_1(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.000
       #  println(state.stepsizecontrol)
         print(state.step)
         print(" ")
-        if state.step == 0 && state.tau.u[end] < 0.0
-      #      println(state.z_old)
-            state.tau.u = -state.tau.u
-            state.tau.p = -state.tau.p
+        if state.step == 0 && state.τ.u[end] < 0.0
+      #      println(state.z)
+            state.τ.u = -state.τ.u
+            state.τ.p = -state.τ.p
     #        state.stepsizecontrol = false
         end
-        if ~isnothing(cstate1) && cstate1.tau.p*state.tau.p < 0.0
-            if abs(state.tau.p) > 3e-5
+        if ~isnothing(cstate1) && cstate1.τ.p*state.τ.p < 0.0
+            if abs(state.τ.p) > 3e-5
                 state.step = cstate1.step
                 state.z_pred  = cstate1.z_pred
-                state.tau = cstate1.tau
-                state.z_old = cstate1.z_old
+                state.τ = cstate1.τ
+                state.z = cstate1.z
                 state.stepsizecontrol = false
                 state.ds = cstate1.ds/2
                 #println("HA")
@@ -651,16 +654,16 @@ function simple_continuation_1(ncf ; dsmin = 0.000001, dsmax = 0.0003, ds= 0.000
                 push!(ncf.αs, getx(state)[end])
                 push!(ncf.Ks, getp(state))
                 push!(Sts,state.step)
-                push!(dαs,state.tau.u[end])
-                push!(dKs,state.tau.p)  
+                push!(dαs,state.τ.u[end])
+                push!(dKs,state.τ.p)  
             #    push!(ncf.Us,getx(state)[1:(2*N1)])
             end
         else
             push!(ncf.αs, getx(state)[end])
             push!(ncf.Ks, getp(state))
             push!(Sts,state.step)
-            push!(dαs,state.tau.u[end])
-            push!(dKs,state.tau.p)  
+            push!(dαs,state.τ.u[end])
+            push!(dKs,state.τ.p)  
             push!(ncf.Us,getx(state)[1:(3*N1)])
         end
          cstate1 = copy(state)
