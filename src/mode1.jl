@@ -189,7 +189,7 @@ end
 
 
 function preparation(ncf)
-    if ncf.Us == nothing
+    if ncf.Us === nothing
         N1 = ncf.at.Ifree
         α_0 = -0.5*norm(ncf.at.X[1].-ncf.at.X[2])
 

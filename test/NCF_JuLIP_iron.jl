@@ -60,6 +60,8 @@ ncf_t = NCF_1(clust)
 kss, αss = preparation_part_1(ncf_t,ll = 2,a1=-0.6,a2=-0.5)
 
 
+##
+
 ####################
 # Preparation Part 2:
 #
@@ -77,9 +79,17 @@ k_st = minimum(kss)
 # k_st = 0.8877816860333725
 
 #using k_st and a_st, we find the first static equilibrium using a hessian-free Optim algorithm:
-xbar1_1 = preparation_part_2(ncf_t,k_st,a_st)
+xbar1_1 = preparation_part_2(ncf_t,k_st,a_st; g_tol=1e-6)
+
+##
+
 # to speed things up Optim algorithm has very large error tolerance, so best to 'top it up' with a quick Newton solver:
-xbar1_2 = Newton_static_1(ncf_t,xbar1_1,k_st,a_st; show = true);
+# xbar1_2 = Newton_static_1(ncf_t,xbar1_1,k_st,a_st; show = true);
+
+xbar1_2 = copy(xbar1_1)
+
+##
+
 # copying just in case
 xbar_c = copy(xbar1_2)
 
@@ -88,7 +98,7 @@ xbar_c = copy(xbar1_2)
 @show ncf_t.g(xbar1_2,k_st,a_st)[end]
 
 # we can "manually" make it a bit better by finding a second static equilibrium triplet is (xbar_b,kk,a_st):
-kk = k_st + 0.000206
+kk = k_st #+ 0.000206
 xbar_b, gg_b = find_k(ncf_t,xbar1_2,kk,a_st)
 
 # this is now close enough to what we want that we can safely call a Roots.find_zero routine, which can be done as follows:
@@ -97,11 +107,15 @@ K_best, xbar_best = preparation_part_3(ncf_t,kk-0.05,kk+0.05,xbar_b,a_st)
 # as a result we have our first flex equilibrium triplet (xbar_best,K_best,a_st):
 @show ncf_t.g(xbar_best,K_best,a_st)[end];
 
+##
+
 #we can further run Newton_flex:
 kbar_fin = K_best
 xbar_fin = xbar_best
 abar_fin = a_st
 flex1 = Newton_flex_1(ncf_t,[xbar_fin;abar_fin],kbar_fin;show=true)
+
+##
 
 #and just in case find a second flex equilibrium a bit away to make kick-starting the continuation easier:
 ee = 0.0001
@@ -134,7 +148,7 @@ push!(ncf_t.αs,flex2[end])
 
 # and off we go:
 simple_continuation_1(ncf_t, theta=0.5, maxSteps=5000,
-        dsmin = 0.00001, dsmax = 0.001, ds= 0.001,
+        dsmin = 0.0001, dsmax = 0.001, ds= 0.001,
         tangentAlgo = SecantPred(), #dotPALC = (x, y) -> dot(x,y)/length(x),
         linsolver = GMRESKrylovKit(), linearAlgo = BorderingBLS())
 

@@ -231,6 +231,19 @@ function h_en_m1_1(at,Ubar,K,α)
     return hess
 end
 
+function h_en_m1_1_fd(at,Ubar,K,α)
+    N4 = length(at)
+    N1 = at["N1"]
+    x0 = copy(dofs(at))
+#     Ubar_v = d2v_m1(vcat(Ubar,zeros(2*(N4-N1))))
+#     Ubar_d = v2d(Ubar_v)
+    Ubar_d = vcat(Ubar,zeros(3*(N4-N1)))
+    Uhat = v2d(U_CLE(at,α))
+    hess = BK.finiteDifferences(x -> gradient(at,x), x0.+K*Uhat.+Ubar_d)
+    set_dofs!(at,x0)
+    return hess
+end
+
 
 function h_en_m1_tot_1(at,Ubar,K,α)
     N4 = length(at)
@@ -261,6 +274,35 @@ function h_en_m1_tot_1(at,Ubar,K,α)
     return hess
 end
 
+function h_en_m1_tot_1_fd(at,Ubar,K,α)
+    N4 = length(at)
+    N1 = at["N1"]
+    x0 = copy(dofs(at))
+#     Ubar_v = d2v_m1(vcat(Ubar,zeros(2*(N4-N1))))
+#     Ubar_d = v2d(Ubar_v)
+    Ubar_d = vcat(Ubar,zeros(3*(N4-N1)))
+    Uhat = v2d(U_CLE(at,α))
+    Vhat = v2d(V_CLE(at,α))
+    VVhat = v2d(VV_CLE(at,α))
+    
+    II12_v = [at["I_R1"]; at["I_R2"]]
+    II12 = Iv2Id(II12_v)
+    
+    II1 = Iv2Id(at["I_R1"])
+    
+    hess = spzeros(3*N1+1,3*N1+1)    
+    hess_base = h_en_m1_1_fd(at,Ubar,K,α)
+    g_base = g_en_m1_1(at,Ubar,K,α)    
+    hess[II1,II1] = hess_base[II1,II1]
+
+    balpha = hess_base*(K*Vhat)
+    Calpha = dot(balpha[II12],K*Vhat[II12]) + dot(g_base[II12],K*VVhat[II12])
+    hess[II1[end]+1,II1] = balpha[II1]
+    hess[II1,II1[end]+1] = balpha[II1]
+    hess[II1[end]+1,II1[end]+1] = Calpha
+    return hess
+end
+
 ########
 
 ### the NCF struct, here denoted by NCF_1 to not lead to clashes with older code
@@ -279,7 +321,7 @@ end
 function NCF_1(at)
     f = (Ubar,K,α) -> f_en_m1_1(at,Ubar,K,α)
     g = (Ubar,K,α) -> g_en_m1_tot_1(at,Ubar,K,α)
-    h = (Ubar,K,α) -> h_en_m1_tot_1(at,Ubar,K,α)
+    h = (Ubar,K,α) -> h_en_m1_tot_1_fd(at,Ubar,K,α)
     
     Ks = nothing
     αs = nothing
@@ -326,6 +368,18 @@ function Newton_flex_1(ncf,xx,K;show=false)
     nit == 12 && warn("the Newton iteration did not converge")
     show && @printf("----------------------------\n")
     return x
+end
+
+function CG_flex_1(ncf,xx,K;show=false, g_tol=1e-3)
+    at = ncf.at
+    N1 = at["N1"]
+    x = copy(xx)
+    If = 1:3*N1
+    E(x) = ncf.f(x[If],K,x[end])
+    ∇E(x) = ncf.g(x[If],K,x[end])
+    return Optim.minimizer(optimize(E, ∇E, x,
+                ConjugateGradient(linesearch = BackTracking(order=2,maxstep=Inf)),
+                Optim.Options(show_trace=true,g_tol=g_tol, f_tol=1e-32)), inplace=false)
 end
 
 function alpha_to_K_1(ncf,α;K = 1.0, show=false)
@@ -382,11 +436,11 @@ end
 # end
 
 
-function preparation_part_2(ncf,k,α)
+function preparation_part_2(ncf,k,α; g_tol=1e-3)
     N1 = ncf.at["N1"]        
     ff0(x) = ncf.f(x,k,α)
     gg0! = (gg, x) -> copyto!(gg, ncf.g(x,k,α)[1:3*N1])
-    xbar0 = Optim.minimizer(optimize(ff0, gg0!, zeros(3*N1),ConjugateGradient(linesearch = BackTracking(order=2,maxstep=Inf)),Optim.Options(show_trace=true,g_tol=1e-3, f_tol=1e-32)))
+    xbar0 = Optim.minimizer(optimize(ff0, gg0!, zeros(3*N1),ConjugateGradient(linesearch = BackTracking(order=2,maxstep=Inf)),Optim.Options(show_trace=true,g_tol=g_tol, f_tol=1e-32)))
     println("(2/3) First static equilibrium found")
     return xbar0
 end
@@ -405,26 +459,26 @@ end
 
 #this function computes a new static equilibrium with K and alpha_0 fixed and xbar the initial guess
 # it returns the new static equilibrium as well as f_alpha (to check if the new equilibrium is also a flex equilibrium)
-function find_k(ncf,xbar,K,α_0)
+function find_k(ncf,xbar,K,α_0; g_tol=1e-6)
     N1 = ncf.at["N1"]
 #    xbar2 = Newton_static_1(ncf,xbar,K,α_0,show=true)
     ff0(x) = ncf.f(x,K,α_0)
     gg0! = (gg, x) -> copyto!(gg, ncf.g(x,K,α_0)[1:3*N1])
-    xbar2 = Optim.minimizer(optimize(ff0, gg0!, xbar,ConjugateGradient(linesearch = BackTracking(order=2,maxstep=Inf)),Optim.Options(show_trace=true,g_tol=1e-3, f_tol=1e-32)))
-    xbar3 = Newton_static_1(ncf,xbar2,K,α_0,show=true)
+    xbar2 = Optim.minimizer(optimize(ff0, gg0!, xbar,ConjugateGradient(linesearch = BackTracking(order=2,maxstep=Inf)),Optim.Options(show_trace=true,g_tol=g_tol, f_tol=1e-32)))
+    # xbar3 = Newton_static_1(ncf,xbar2,K,α_0,show=true)
 #    xbar[1:3*N1] = xbar2[1:3*N1]
 #    print("done ")
-    return xbar3, ncf.g(xbar2,K,α_0)[end]
+    return xbar2, ncf.g(xbar2,K,α_0)[end]
 end
 
 #this version adjusts xbar instead of returning the solution as a separate vector
-function find_k!(ncf,xbar,K,α_0)
+function find_k!(ncf,xbar,K,α_0; g_tol=1e-8)
     N1 = ncf.at["N1"]
 #    xbar2 = Newton_static_1(ncf,xbar,K,α_0,show=true)
     ff0(x) = ncf.f(x,K,α_0)
     gg0! = (gg, x) -> copyto!(gg, ncf.g(x,K,α_0)[1:3*N1])
-    xbar2 = Optim.minimizer(optimize(ff0, gg0!, xbar,ConjugateGradient(linesearch = BackTracking(order=2,maxstep=Inf)),Optim.Options(show_trace=true,g_tol=1e-3, f_tol=1e-32)))
-    xbar3 = Newton_static_1(ncf,xbar2,K,α_0,show=true)
+    xbar2 = Optim.minimizer(optimize(ff0, gg0!, xbar,ConjugateGradient(linesearch = BackTracking(order=2,maxstep=Inf)),Optim.Options(show_trace=true,g_tol=g_tol, f_tol=1e-32)))
+    # xbar3 = Newton_static_1(ncf,xbar2,K,α_0,show=true)
     xbar[1:3*N1] = xbar2[1:3*N1]
 #    print("done ")
     return ncf.g(xbar2,K,α_0)[end]
@@ -433,9 +487,9 @@ end
 # for this to work the choice of k1 and k2 is crucial with the corresponding f_alpha of different 
 # signs. Not easy to guess it, so not very efficient at the moment... 
 # if we choose a bad alpha for which we get the jump in f_alpha such that it misses zero, then this will never converge
-function preparation_part_3(ncf,k1,k2,xbar0,α)
+function preparation_part_3(ncf,k1,k2,xbar0,α; g_tol=1e-3)
     xbar1 = copy(xbar0)
-    fff = K-> find_k!(ncf,xbar1,K,α)
+    fff = K-> find_k!(ncf,xbar1,K,α; g_tol=g_tol)
     K_best = find_zero(fff,(k1,k2),FalsePosition(),atol = 1e-5,verbose=true,maxevals=10)
     println("(3/3) First flex equilibrium found")
     return K_best, xbar1
