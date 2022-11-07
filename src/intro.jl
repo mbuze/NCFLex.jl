@@ -1,6 +1,6 @@
 export foo, bar
 
-greet() = print("I love Anna!")
+greet() = print("Hi!")
 
 f1() = print("it works!")
 
