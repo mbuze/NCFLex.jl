@@ -65,7 +65,9 @@ function plot_phi!(at; c1 = at.CC[1],c2 = at.CC[2])
 end
 
 # --------------------
+# Basic inference procedure 
 
+# Prior on C
 using Distributions
 
 t1 = 2.0
@@ -92,16 +94,17 @@ c2_s = rand(d_c2,10);
 #    return NCFlex.energy_pp(at,(l.-1).*at.X)
 #end
 
+###
+# test configurations:
+at = NCFlex.AtmModel(; R=1.0)
+len = 3
+alpha_r = range(0.9,1.5,length=len)
+Rc_t = [α*at.X for α in alpha_r]
+
+
 ### likelihood
-at = NCFlex.AtmModel(; R=3.0)
-
-len = 10
-β = 0.5
+β = 0.0005
 B_I = (1/β)*I(len)
-
-alpha_r = range(0.5,10.0,length=len)
-Rc = [α*at.X for α in alpha_r]
-
 
 en_R(R) = NCFlex.energy_pp(at,R .- at.X)
 
@@ -111,24 +114,41 @@ function Hc(at, Rc; c1 = at.CC[1],c2 = at.CC[2])
     return [en_R(R) for R in Rc]
 end
 
-function pp(y, at, Rc; c1 = at.CC[1],c2 = at.CC[2], β = 0.5)
+function loglhood(y, at, Rc; c1 = at.CC[1],c2 = at.CC[2], β = 0.5)
     E = Hc(at,Rc; c1 = c1, c2 = c2)
     len = length(E)
     B_I = (1/β)*I(len)
     dd = MvNormal(E,B_I)
-    return pdf(dd,y)
+    return logpdf(dd,y)
 end
 
-Ec = Hc(at,Rc)
+function lhood(y, at, Rc; c1 = at.CC[1],c2 = at.CC[2], β = 0.5)
+    E = Hc(at,Rc; c1 = c1, c2 = c2)
+    len = length(E)
+    B_I = (1/β)*I(len)
+    dd = MvNormal(E,B_I)
+    return dd
+end
 
-pp(Ec, at, Rc)
+Ec = Hc(at,Rc_t)
+
+lhood(Ec, at, Rc_t; β = β)
 ###################################
 # model evidence
 
-ff(c1,c2;y = Ec) = pp(y, at, Rc, c1 = c1, c2 = c2)*pdf(d_c1,c1)*pdf(d_c2,c2)
+ff(c1,c2;y = Ec) = lhood(y, at, Rc_t, c1 = c1, c2 = c2)*pdf(d_c1,c1)*pdf(d_c2,c2)
 
 g(c2) = ff(1.0,c2)
 
 c2_r = range(0.5,3.0,length=20)
 
 plot(c2_r, g.(c2_r))
+
+
+d_test = MvNormal([1.0;3.0],I)
+
+XY = [[i,j] for i in -10:10 for j in -10:10]
+
+pp = [pdf(d_test,xy) for xy in XY]
+
+extrema(pp)

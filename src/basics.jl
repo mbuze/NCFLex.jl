@@ -173,6 +173,7 @@ mutable struct AtmModel
     phi     # pair potential
     dphi
     ddphi
+    CC
 end
 
 """
@@ -181,16 +182,15 @@ A function to define an Atoms environment.
 AtmModel(; R=5.0, R_star = 1.0, lt=tri(),mode1=true)
 
 """
-function AtmModel(; R=5.0, R_star = 1.0, lt = tri(), mode1 = true)
+function AtmModel(; R=5.0, R_star = 1.0, lt = tri(), mode1 = true, CC = [1.0; 2^(-1/6)])
     X = domain(r = R+(2*R_star), lt = lt)
     Ns = at_pairs(X, r = R_star)
     Iclamp = findfirst(length.(Ns) .< maximum(length.(Ns)))
     Ifree = findfirst([sum(Ns[i] .> Iclamp-0.5) for i in 1:length(X)] .> 0) - 1
-    CC = [1.0; 2^(-1/6)]
     phi(r) = 4.0*CC[1]*((CC[2]/r)^(12.0) - (CC[2]/r)^(6.0))
     dphi(r) = ForwardDiff.derivative(phi,r)
     ddphi(r) = ForwardDiff.derivative(dphi,r);
-    return AtmModel(R, R_star, X, Ns, Ifree, Iclamp, lt,mode1,phi,dphi,ddphi)
+    return AtmModel(R, R_star, X, Ns, Ifree, Iclamp, lt,mode1,phi,dphi,ddphi,CC)
 end
 
 
