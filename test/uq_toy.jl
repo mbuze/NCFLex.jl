@@ -97,7 +97,7 @@ c2_s = rand(d_c2,10);
 ###
 # test configurations:
 at = NCFlex.AtmModel(; R=1.0)
-len = 3
+len = 10
 alpha_r = range(0.9,1.5,length=len)
 Rc_t = [α*at.X for α in alpha_r]
 
@@ -133,6 +133,20 @@ end
 Ec = Hc(at,Rc_t)
 
 lhood(Ec, at, Rc_t; β = β)
+
+fff(c,p) = pdf(lhood(Ec,at,Rc_t;β = β, c1 = c[1], c2 = c[2]),Ec)*pdf(d_c1,c[1])*pdf(d_c2,c[2])
+
+
+# fff2(c,p) = pdf(d_c2,c[1])
+
+# prob = IntegralProblem(fff2,-10ones(1),10ones(1))
+# sol = solve(prob,HCubatureJL(),reltol=1e-3,abstol=1e-3)
+
+using Integrals
+
+prob = IntegralProblem(fff,-10ones(2),10ones(2))
+sol = solve(prob,HCubatureJL(),reltol=1e-3,abstol=1e-3)
+
 ###################################
 # model evidence
 
@@ -152,3 +166,12 @@ XY = [[i,j] for i in -10:10 for j in -10:10]
 pp = [pdf(d_test,xy) for xy in XY]
 
 extrema(pp)
+
+
+using Integrals
+f(x,p) = sum(sin.(x))
+prob = IntegralProblem(f,ones(2),3ones(2))
+sol = solve(prob,HCubatureJL(),reltol=1e-3,abstol=1e-3)
+
+
+
